@@ -23,11 +23,8 @@ main:
 
     call train
 
-    movss %xmm0, %xmm3
-    movss %xmm1, %xmm4
-
-    movss %xmm3, %xmm1
-    movss %xmm4, %xmm2
+    movss %xmm1, %xmm2
+    movss %xmm0, %xmm1
     movss prediction(%rip), %xmm3
 
     call predict
@@ -128,7 +125,6 @@ train:
 *        xmm0: predicted y value
 */
 predict:
-
     movss %xmm1, %xmm0             # predicted_y = slope
     mulss %xmm3, %xmm0             # predicted_y *= x
     addss %xmm2, %xmm0             # predicted_y += intercept
