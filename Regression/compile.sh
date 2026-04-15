@@ -1,0 +1,1 @@
+gcc -no-pie linear.s -o linear
