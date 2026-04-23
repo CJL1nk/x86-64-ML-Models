@@ -17,7 +17,6 @@
 .extern printf
 
 main:
-
     push %rbp
     mov %rsp, %rbp
 
@@ -39,6 +38,7 @@ main:
     pop %rbp
     xor %eax, %eax
     ret
+
 
 /*
 * Performs linear regression on a dataset of n points.
