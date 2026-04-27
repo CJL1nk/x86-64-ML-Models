@@ -22,9 +22,9 @@
         epochs:
             .quad 1000
 
-        input1:
+        input_height:
             .float 72.0
-        input2:
+        input_weight:
             .float 250.0
 
 
@@ -41,11 +41,10 @@ main:
     push %rbp
     mov %rsp, %rbp
 
-    movss one(%rip), %xmm2          # Load 1.0 into xmm2
 
     xorps %xmm0, %xmm0              # Clear w1
     xorps %xmm1, %xmm1              # Clear w2
-    addss %xmm2, %xmm1
+    movss random_input(%rip), %xmm1          # Load 1.0 into xmm1
 
     call sigmoid
 
@@ -80,8 +79,9 @@ sigmoid:
 
     movss one(%rip), %xmm2           # Load 1.0 into xmm2
  
-    addss %xmm2, %xmm0               # Compute 1 + exp
-    divss %xmm2, %xmm0               # Compute 1 / (1 + exp(-z))
+    addss %xmm2, %xmm0               # Compute 1 + exp(-z)
+    divss %xmm0, %xmm2               # Compute 1 / (1 + exp(-z))
+    movss %xmm2, %xmm0               # Move result to xmm0 for return
 
     movups (%rsp), %xmm2
     addq $16, %rsp
@@ -98,23 +98,114 @@ sigmoid:
 */
 train_logistic_2d:
 
-    xorps %xmm13, %xmm13            # Clear dw1
-    xorps %xmm14, %xmm14            # Clear dw2
-    xorps %xmm15, %xmm15            # Clear db
-
+    # Model parameters
     xorps %xmm0, %xmm0              # Clear w1
     xorps %xmm1, %xmm1              # Clear w2
     xorps %xmm2, %xmm2              # Clear b
 
+
     xor %rsi, %rsi                  # Clear loop counter (i)
+    mov epochs(%rip), %rdi          # Load epochs into rdi
+  loop1:
+      
+      xorps %xmm13, %xmm13          # Clear dw1
+      xorps %xmm14, %xmm14          # Clear dw2
+      xorps %xmm15, %xmm15          # Clear db
+
+      push %rsi                     # Save loop counter for inner loop
+      push %rdi                     # Save epochs for inner loop
 
 
-    mov size(%rip), %rdi            # Load data size into rdi
-  loop:
+      mov size(%rip), %rdi          # Load data size into rdi
+      xor %rsi, %rsi                # Clear loop counter for inner loop
+    loop2:
+        xorps %xmm12, %xmm12        # Clear z               (will also hold p AND error in future)
+        xorps %xmm9, %xmm9          # Clear temp1
+        xorps %xmm10, %xmm10        # Clear temp2
+
+        movss heights(,%rsi,4), %xmm9  # Load height[i]
+        movss weights(,%rsi,4), %xmm10 # Load weight[i]
+
+        mulss %xmm0, %xmm9          # w1 *= height[i]
+        mulss %xmm1, %xmm10         # w2 *= weight[i]
+
+        addss %xmm9, %xmm12         # z += w1 * height[i]
+        addss %xmm10, %xmm12        # z += w2 * weight[i]
+        addss %xmm2, %xmm12         # z += b
+
+        subq $16, %rsp              # Push xmm0 (w1) before sigmoid 
+        movups %xmm0, (%rsp)
+        subq $16, %rsp              # Push xmm1 (w2) before sigmoid
+        movups %xmm1, (%rsp)
+        movss %xmm12, %xmm1         # Move z into xmm1 for sigmoid
+
+        call sigmoid                # p = sigmoid(z)        (p to be held in xmm12)
+        movss %xmm0 , %xmm12
+
+        movups (%rsp), %xmm1        # Restore w2
+        addq $16, %rsp
+        movups (%rsp), %xmm0        # Restore w1
+        addq $16, %rsp
+      
+        subss outputs(,%rsi,4), %xmm12 # error = p - y[i]   (error to be held in xmm12)
+
+        movss %xmm12, %xmm9         # temp1 = error
+        mulss heights(,%rsi,4), %xmm9 # temp1 *= height[i]
+        addss %xmm9, %xmm13         # dw1 += temp1
+
+        movss %xmm12, %xmm10        # temp2 = error
+        mulss weights(,%rsi,4), %xmm10 # temp2 *= weight[i]
+        addss %xmm10, %xmm14        # dw2 += temp2
+
+        addss %xmm12, %xmm15        # db += error
+
+        inc %rsi                    # i++
+        cmp %rsi, %rdi              # Compare i with size
+        jl loop2                    # Loop if i < size
+    # End loop2
     
+      pop %rdi                       # Restore epochs
+      pop %rsi                       # Restore loop counter
 
+      divss size(%rip), %xmm13       # dw1 /= size
+      divss size(%rip), %xmm14       # dw2 /= size
+      divss size(%rip), %xmm15       # db /= size
+
+      movss learning_rate(%rip), %xmm9 # temp1 = learning_rate
+      mulss %xmm13, %xmm9            # temp1 *= dw1
+      subss %xmm9, %xmm0             # w1 -= temp1
+
+      movss learning_rate(%rip), %xmm9 # temp1 = learning_rate
+      mulss %xmm14, %xmm9            # temp1 *= dw2
+      subss %xmm9, %xmm1             # w2 -= temp1
+
+      movss learning_rate(%rip), %xmm9 # temp1 = learning_rate
+      mulss %xmm15, %xmm9            # temp1 *= db
+      subss %xmm9, %xmm2             # b -= temp1
+
+      inc %rsi                       # epoch++
+      cmp %rsi, %rdi                 # Compare epoch with epochs
+      jl loop1                       # Loop if epoch < epochs
+  # End loop1
+
+    ret
+
+
+/**
+* Predicts probabilities for a 2D logistic regression model
+* inputs:
+*        xmm1: w1
+*        xmm2: w2
+*        xmm3: b
+*        xmm4: input_height
+*        xmm5: input_weight
+* returns:
+*        xmm0: predicted probability
+*/
 
 predict_prob_2d:
+
+    
 
 
 predict_class_2d:
