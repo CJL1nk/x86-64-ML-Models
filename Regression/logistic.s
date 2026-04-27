@@ -44,7 +44,7 @@ main:
 
     xorps %xmm0, %xmm0              # Clear w1
     xorps %xmm1, %xmm1              # Clear w2
-    movss random_input(%rip), %xmm1          # Load 1.0 into xmm1
+    movss e(%rip), %xmm1            # Load 2.71 into xmm1
 
     call sigmoid
 
