@@ -135,3 +135,5 @@ predict:
     addss %xmm2, %xmm0              # predicted_y += intercept
 
     ret
+
+.section .note.GNU-stack,"",@progbits
