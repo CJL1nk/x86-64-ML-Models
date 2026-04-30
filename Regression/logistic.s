@@ -2,8 +2,6 @@
     .align 16
         one:
             .double 1.0
-        prob_threshold:
-            .double 0.5
         negone:
             .double -1.0
         heights:
@@ -19,15 +17,20 @@
             .double 32.0
         size_int:
             .quad 32
-        learning_rate:
-            .double 0.01
         epochs:
             .quad 1000
 
+        learning_rate:
+            .double 0.01
+        balancer:
+            .double 1.3
+        prob_threshold:
+            .double 0.5
+
         input_height:
-            .double 79.0
+            .double 72.0
         input_weight:
-            .double 250.0
+            .double 150.0
 
 
 .section .text
@@ -121,8 +124,9 @@ train_logistic_2d:
         movsd %xmm0, %xmm12         # z = w1 * heights[i]
         mulsd heights(,%rsi,8), %xmm12
 
-        movsd %xmm1, %xmm9          # temp = w2 * weights[i]
-        mulsd weights(,%rsi,8), %xmm9
+        movsd weights(,%rsi,8), %xmm9   # xmm9 = weight[i]
+        divsd balancer(%rip), %xmm9          # xmm9 = weight[i] / 10
+        mulsd %xmm1, %xmm9              # xmm9 = w2 * (weight[i]/10)
 
         addsd %xmm9, %xmm12         # z += temp
         addsd %xmm2, %xmm12         # z += b
