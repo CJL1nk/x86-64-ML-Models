@@ -111,7 +111,14 @@ train_logistic_2d:
       xorps %xmm13, %xmm13          # Clear dw1
       xorps %xmm14, %xmm14          # Clear dw2
       xorps %xmm15, %xmm15          # Clear db
- = w1 * heights[i]
+      push %rsi                     # Save loop counter for inner loop
+      push %rdi                     # Save epochs for inner loop
+
+      xor %rsi, %rsi                # Clear loop counter for inner loop
+      mov size_int(%rip), %rdi      # Load data size into rdi
+    loop2:
+
+        movsd %xmm0, %xmm12         # z = w1 * heights[i]
         mulsd heights(,%rsi,8), %xmm12
 
         movsd %xmm1, %xmm9          # temp = w2 * weights[i]
